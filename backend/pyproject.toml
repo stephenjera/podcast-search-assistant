@@ -1,0 +1,60 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "podcast-search-assistant"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.138.2",
+    "openai>=2.44.0",
+    "pgvector>=0.4.1",
+    "pydantic>=2.13.4",
+    "pydantic-ai>=2.1.0",
+    "pydantic-settings>=2.14.1",
+    "psycopg[binary]>=3.2.10",
+    "pydub>=0.25.1",
+    "uvicorn>=0.35.0",
+]
+
+[tool.ruff.lint]
+select = [
+    "ALL", # All rules
+    "E",   # Pycodestyle errors
+    "F",   # Pyflakes
+    "I",   # Import sorting
+    "D",   # Docstring rules
+    "ANN", # Type annotation rules
+    "B",   # Bugbear
+    "UP",  # Pyupgrade
+]
+ignore = [
+    "D203",   # One-blank-line-before-class (conflicts with D211)
+    "D213",   # Multi-line docstring summary on first line (Google style uses second line)
+    "D212",   # Multi-line docstring summary should start at the first line
+    "G004",   # Logging statement uses f-string
+    "T201",   # `print` found
+    "TRY003", # Avoid specifying long messages outside the exception class
+    "EM102",  # help: Exception must not use an f-string literal, assign to variable first Assign to variable; remove f-string literal
+]
+
+# Docstring style
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+py-modules = ["config", "db", "logger", "models", "utils"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["api", "api.*", "pipeline", "pipeline.*"]
+
+[dependency-groups]
+dev = [
+    "ipykernel>=7.2.0",
+    "ruff>=0.15.20",
+]
