@@ -3,18 +3,16 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "podcast-backend"
+name = "podcast-eval"
 version = "0.1.0"
-description = "FastAPI query service for podcast transcript search"
+description = "Offline benchmark harness for semantic search quality"
 requires-python = ">=3.10"
 dependencies = [
-    "fastapi>=0.138.2",
-    "uvicorn>=0.35.0",
     "podcast-core>=0.1.0",
 ]
 
 [tool.hatch.build.targets.wheel]
-packages = ["podcast_backend"]
+packages = ["podcast_eval"]
 
 [dependency-groups]
 dev = ["ruff>=0.15.20"]

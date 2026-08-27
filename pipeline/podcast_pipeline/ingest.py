@@ -1,13 +1,15 @@
 import argparse
 from pathlib import Path
 
-from config import settings
-from db import get_db_connection
-from embeddings import embed_texts
-from logger import get_logger
-from pipeline.audio import download_episode_audio
-from pipeline.chunking import build_chunks_from_transcript
-from pipeline.repository import (
+from podcast_core.config import AUDIO_DIR, DATA_ROOT, TRANSCRIPT_DIR, settings
+from podcast_core.db import get_db_connection
+from podcast_core.embeddings import embed_texts
+from podcast_core.logger import get_logger
+from podcast_core.meta import stamp_schema_meta, warn_if_corpus_mismatch
+from podcast_core.utils import read_json, write_json
+from podcast_pipeline.audio import download_episode_audio
+from podcast_pipeline.chunking import build_chunks_from_transcript
+from podcast_pipeline.repository import (
     finish_ingest_run,
     replace_chunks,
     start_ingest_run,
@@ -15,16 +17,12 @@ from pipeline.repository import (
     upsert_episode,
     upsert_transcript,
 )
-from pipeline.rss import fetch_episodes
-from pipeline.transcription import load_or_transcribe_episode, transcript_cache_path
-from utils import read_json, write_json
+from podcast_pipeline.rss import fetch_episodes
+from podcast_pipeline.transcription import load_or_transcribe_episode, transcript_cache_path
 
 logger = get_logger(__name__)
 
-DATA_ROOT = Path(__file__).resolve().parent.parent.parent / "data"
 EPISODES_PATH = DATA_ROOT / "episodes.json"
-AUDIO_DIR = DATA_ROOT / "audio"
-TRANSCRIPT_DIR = DATA_ROOT / "transcripts"
 DEFAULT_TRUNCATION_SECONDS = 120
 
 
@@ -37,6 +35,7 @@ def run_ingestion(args: argparse.Namespace) -> None:
     with get_db_connection() as conn:
         run_id = start_ingest_run(conn)
         conn.commit()
+        warn_if_corpus_mismatch(conn, settings.EMBEDDING_MODEL)
         processed = 0
         try:
             for episode in episodes:
@@ -127,6 +126,11 @@ def run_ingestion(args: argparse.Namespace) -> None:
             conn, run_id, status="completed", episodes_processed=processed
         )
         conn.commit()
+        stamp_schema_meta(
+            conn,
+            embedding_model=settings.EMBEDDING_MODEL,
+            transcription_model=settings.TRANSCRIPTION_MODEL,
+        )
         logger.info(f"Ingest run {run_id} completed: {processed} episodes")
 
 

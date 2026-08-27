@@ -4,7 +4,7 @@ from typing import Any
 from psycopg import Connection
 from psycopg.types.json import Json
 
-from models import Chunk, Episode
+from podcast_core.models import Chunk, Episode
 
 
 def upsert_episode(conn: Connection, episode: Episode) -> str:

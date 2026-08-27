@@ -2,9 +2,9 @@ import email.utils
 import urllib.request
 import xml.etree.ElementTree as ET
 
-from logger import get_logger
-from models import Episode
-from utils import slugify, stable_id
+from podcast_core.logger import get_logger
+from podcast_core.models import Episode
+from podcast_core.utils import slugify, stable_id
 
 logger = get_logger(__name__)
 

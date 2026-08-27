@@ -1,14 +1,51 @@
+"""Shared read-path SQL, used by the API and the eval harness.
+
+Returns plain dataclass rows (no service schemas) so that this module
+stays free of any service-specific dependencies.
+"""
+
+from dataclasses import dataclass
+
 from pgvector import Vector
 from psycopg import Connection
 
-from api.schemas import EpisodeChunk, EpisodeSummary, SearchHit
-from logger import get_logger
-from utils import format_timestamp
+from podcast_core.logger import get_logger
 
 logger = get_logger(__name__)
 
 
-def list_episodes(conn: Connection, limit: int = 100) -> list[EpisodeSummary]:
+@dataclass(frozen=True)
+class EpisodeSummaryRow:
+    episode_id: str
+    title: str
+    published_at: str | None
+    audio_url: str | None
+    page_url: str | None
+
+
+@dataclass(frozen=True)
+class SearchHitRow:
+    chunk_id: str
+    episode_id: str
+    episode_title: str
+    text: str
+    start_time: float
+    end_time: float
+    page_url: str | None
+    published_at: str | None
+    score: float
+
+
+@dataclass(frozen=True)
+class ChunkRow:
+    chunk_id: str
+    chunk_index: int
+    text: str
+    start_time: float
+    end_time: float
+
+
+def list_episodes(conn: Connection, limit: int = 100) -> list[EpisodeSummaryRow]:
     with conn.cursor() as cur:
         cur.execute(
             """
@@ -22,7 +59,7 @@ def list_episodes(conn: Connection, limit: int = 100) -> list[EpisodeSummary]:
         rows = cur.fetchall()
 
     return [
-        EpisodeSummary(
+        EpisodeSummaryRow(
             episode_id=row[0],
             title=row[1],
             published_at=row[2],
@@ -33,7 +70,7 @@ def list_episodes(conn: Connection, limit: int = 100) -> list[EpisodeSummary]:
     ]
 
 
-def get_episode(conn: Connection, episode_id: str) -> EpisodeSummary | None:
+def get_episode(conn: Connection, episode_id: str) -> EpisodeSummaryRow | None:
     with conn.cursor() as cur:
         cur.execute(
             """
@@ -47,7 +84,7 @@ def get_episode(conn: Connection, episode_id: str) -> EpisodeSummary | None:
         row = cur.fetchone()
     if row is None:
         return None
-    return EpisodeSummary(
+    return EpisodeSummaryRow(
         episode_id=row[0],
         title=row[1],
         published_at=row[2],
@@ -61,7 +98,7 @@ def vector_search(
     query_vector: list[float],
     top_k: int,
     episode_id: str | None = None,
-) -> list[SearchHit]:
+) -> list[SearchHitRow]:
     vector = Vector(query_vector)
     with conn.cursor() as cur:
         if episode_id:
@@ -110,7 +147,7 @@ def vector_search(
         rows = cur.fetchall()
 
     hits = [
-        SearchHit(
+        SearchHitRow(
             score=float(row[8]),
             chunk_id=row[0],
             episode_id=row[1],
@@ -118,8 +155,6 @@ def vector_search(
             text=row[3],
             start_time=float(row[4]),
             end_time=float(row[5]),
-            timestamp_label="",
-            snippet="",
             page_url=row[6],
             published_at=row[7],
         )
@@ -131,7 +166,7 @@ def vector_search(
 
 def list_episode_chunks(
     conn: Connection, episode_id: str, limit: int = 500
-) -> list[EpisodeChunk]:
+) -> list[ChunkRow]:
     with conn.cursor() as cur:
         cur.execute(
             """
@@ -147,13 +182,12 @@ def list_episode_chunks(
         rows = cur.fetchall()
 
     return [
-        EpisodeChunk(
+        ChunkRow(
             chunk_id=row[0],
             chunk_index=int(row[1]),
             text=row[2],
             start_time=float(row[3]),
             end_time=float(row[4]),
-            timestamp_label=format_timestamp(float(row[3])),
         )
         for row in rows
     ]

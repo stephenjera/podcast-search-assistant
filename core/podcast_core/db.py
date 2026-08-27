@@ -4,7 +4,7 @@ from contextlib import contextmanager
 from pgvector.psycopg import register_vector
 from psycopg import Connection, connect
 
-from config import settings
+from podcast_core.config import settings
 
 
 @contextmanager

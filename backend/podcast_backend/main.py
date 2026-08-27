@@ -1,10 +1,15 @@
+from contextlib import asynccontextmanager
 from typing import NoReturn
 
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 
-from api.repository import get_episode, list_episode_chunks, list_episodes
-from api.schemas import (
+from podcast_core.config import settings
+from podcast_core.db import get_db_connection
+from podcast_core.logger import get_logger
+from podcast_core.meta import validate_embedding_model
+from podcast_core.repository import get_episode, list_episode_chunks, list_episodes
+from podcast_backend.schemas import (
     EpisodeChunksResponse,
     EpisodeDetailResponse,
     EpisodeListResponse,
@@ -12,12 +17,20 @@ from api.schemas import (
     SearchRequest,
     SearchResponse,
 )
-from api.service import run_search
-from db import get_db_connection
-from logger import get_logger
+from podcast_backend.service import run_search
 
 logger = get_logger(__name__)
-app = FastAPI(title="Podcast Search Assistant API", version="0.1.0")
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Fail loudly if the corpus was embedded by a different model than this API's.
+    with get_db_connection() as conn:
+        validate_embedding_model(conn, settings.EMBEDDING_MODEL)
+    yield
+
+
+app = FastAPI(title="Podcast Search Assistant API", version="0.1.0", lifespan=lifespan)
 
 
 def _raise_internal_error(route_label: str, exc: Exception) -> NoReturn:

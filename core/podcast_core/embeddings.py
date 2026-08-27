@@ -7,8 +7,8 @@ This module is the single place that talks to the embedding provider.
 
 import httpx
 
-from config import settings
-from logger import get_logger
+from podcast_core.config import settings
+from podcast_core.logger import get_logger
 
 logger = get_logger(__name__)
 

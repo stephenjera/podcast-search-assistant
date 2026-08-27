@@ -1,9 +1,9 @@
 import urllib.request
 from pathlib import Path
 
-from logger import get_logger
-from models import Episode
-from utils import ensure_parent
+from podcast_core.logger import get_logger
+from podcast_core.models import Episode
+from podcast_core.utils import ensure_parent
 
 logger = get_logger(__name__)
 

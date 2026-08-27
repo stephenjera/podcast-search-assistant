@@ -1,10 +1,11 @@
-from api.repository import vector_search
-from api.schemas import SearchHit, SearchResponse
-from config import settings
-from db import get_db_connection
-from embeddings import embed_texts
-from logger import get_logger
-from utils import format_timestamp
+from podcast_core.repository import vector_search
+
+from .schemas import SearchHit, SearchResponse
+from podcast_core.config import settings
+from podcast_core.db import get_db_connection
+from podcast_core.embeddings import embed_texts
+from podcast_core.logger import get_logger
+from podcast_core.utils import format_timestamp
 
 logger = get_logger(__name__)
 
@@ -23,12 +24,29 @@ def run_search(
     logger.info(f"Query embedding generated (dimensions={len(query_vector)})")
 
     with get_db_connection() as conn:
-        hits = vector_search(
+        rows = vector_search(
             conn=conn,
             query_vector=query_vector,
             top_k=top_k,
             episode_id=episode_id,
         )
+
+    hits = [
+        SearchHit(
+            score=row.score,
+            chunk_id=row.chunk_id,
+            episode_id=row.episode_id,
+            episode_title=row.episode_title,
+            text=row.text,
+            start_time=row.start_time,
+            end_time=row.end_time,
+            timestamp_label="",
+            snippet=row.text[:260],
+            page_url=row.page_url,
+            published_at=row.published_at,
+        )
+        for row in rows
+    ]
 
     min_score = (
         settings.SEARCH_MIN_SCORE if min_score_override is None else min_score_override

@@ -4,7 +4,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from config import settings
+from podcast_core.config import settings
 
 
 class JSONFormatter(logging.Formatter):

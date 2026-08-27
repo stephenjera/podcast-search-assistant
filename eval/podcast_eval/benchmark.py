@@ -14,8 +14,8 @@ Queries file (JSON), at `benchmark/queries.json`:
       "probes":   [{"id": "...", "query": "..."}]
     }
 
-Usage (from backend/):
-    uv run python -m pipeline.benchmark [--queries benchmark/queries.json] [--top-k 5]
+Usage (from eval/):
+    uv run python -m podcast_eval.benchmark [--queries queries.json] [--top-k 5]
 """
 
 import argparse
@@ -25,16 +25,17 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 
-from api.repository import vector_search
-from config import settings
-from db import get_db_connection
-from embeddings import embed_texts
-from logger import get_logger
+from podcast_core.repository import vector_search
+from podcast_core.config import settings
+from podcast_core.db import get_db_connection
+from podcast_core.embeddings import embed_texts
+from podcast_core.logger import get_logger
 
 logger = get_logger(__name__)
 
-DEFAULT_QUERIES_PATH = Path("benchmark/queries.json")
-RESULTS_DIR = Path("benchmark/results")
+EVAL_ROOT = Path(__file__).resolve().parents[1]  # <repo>/eval
+DEFAULT_QUERIES_PATH = EVAL_ROOT / "queries.json"
+RESULTS_DIR = EVAL_ROOT / "results"
 
 
 @dataclass

@@ -1,7 +1,7 @@
 from typing import Any
 
-from models import Chunk, Episode
-from utils import stable_id
+from podcast_core.models import Chunk, Episode
+from podcast_core.utils import stable_id
 
 
 def build_chunks_from_transcript(

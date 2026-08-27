@@ -5,10 +5,10 @@ from typing import Any
 from faster_whisper import WhisperModel
 from pydub import AudioSegment
 
-from config import settings
-from logger import get_logger
-from models import Episode
-from utils import ensure_parent, read_json, write_json
+from podcast_core.config import settings
+from podcast_core.logger import get_logger
+from podcast_core.models import Episode
+from podcast_core.utils import ensure_parent, read_json, write_json
 
 logger = get_logger(__name__)
 

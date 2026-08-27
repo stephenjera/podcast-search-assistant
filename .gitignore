@@ -1,0 +1,16 @@
+# personal decision log (not part of the project)
+decision_log.md
+
+# Python
+__pycache__/
+*.py[codz]
+*.egg-info/
+.venv/
+.env
+.ruff_cache/
+
+# local data (audio, transcripts, postgres volume, generated eval results)
+data/
+eval/results/
+servers.json
+*.log

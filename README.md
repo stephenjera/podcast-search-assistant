@@ -1,173 +1,90 @@
 # Podcast Search Assistant
 
-Small full-stack application that ingests podcast episodes and enables natural-language transcript search.
+Search podcast transcripts with natural language. Fully local: transcription with faster-whisper, embeddings with Ollama, storage in Postgres + pgvector.
 
-This repository is structured as:
+## Repository layout
 
-- `backend/`: ingestion pipeline + FastAPI query API + Postgres/pgvector persistence
-- `frontend/`: React + TypeScript + Tailwind CSS v4 SPA
+| Package | What it is | Talks to |
+|---|---|---|
+| `core/` | `podcast-core` — shared library: config, DB, Ollama embedding client, models, shared read SQL, corpus provenance (`schema_meta`) | Postgres, Ollama |
+| `pipeline/` | `podcast-pipeline` — ingest: RSS, audio download, whisper transcription, chunking, embedding, write to DB | core, Postgres, Ollama |
+| `backend/` | `podcast-backend` — FastAPI query service (`/search`, `/episodes`) | core, Postgres, Ollama |
+| `eval/` | `podcast-eval` — benchmark harness (gold queries vs unrelated probes) + `queries.json` | core, Postgres, Ollama |
+| `frontend/` | React + TypeScript SPA | backend |
 
-Detailed runbooks:
+Shared state lives at the repo root: `db/` (SQL migrations), `docker-compose.yml` (Postgres), `.env` (local config), `data/` (gitignored: audio + transcript caches).
 
-- [Backend README](backend/README.md)
-- [Frontend README](frontend/README.md)
+Dependency rule: `pipeline`, `backend`, and `eval` all depend on `core`; **nothing depends on the pipeline, and the API never imports pipeline code.** `core` is a library baked into each consumer's artifact (Docker image / venv) — it is not itself a deployed service.
 
-## Shared Setup
+## Prerequisites
 
-### 1. Prerequisites
+- Python 3.10+ with [uv](https://docs.astral.sh/uv/)
+- Docker (for Postgres)
+- [Ollama](https://ollama.com) running locally
+- Node.js 20+ (frontend only)
 
-- Python 3.12+
-- `uv`
-- Node.js 20+
-- npm
-- Docker (for Postgres + pgvector)
-- Ollama (local embedding model)
-
-### 2. Start Database
+## Quickstart
 
 ```bash
-cd backend
+# 1. Database (from repo root)
 docker compose up -d
-```
+docker exec -i -u postgres postgres psql -U docker -d postgres < db/init/001_extensions.sql
+docker exec -i -u postgres postgres psql -U docker -d postgres < db/init/002_schema.sql
+docker exec -i -u postgres postgres psql -U docker -d postgres < db/init/003_schema_meta.sql
 
-### 3. Pull the embedding model
-
-```bash
+# 2. Embedding model
 ollama pull qwen3-embedding:8b
+
+# 3. Ingest a few episodes (from pipeline/)
+cd pipeline && uv sync
+uv run python -m podcast_pipeline.ingest --limit 5 --full-audio
+
+# 4. API (from backend/)
+cd ../backend && uv sync
+uv run uvicorn podcast_backend.main:app --port 8000
+
+# 5. Frontend (from frontend/)
+cd ../frontend && npm install
+npm run dev   # dev server proxies /api to :8000
+
+# 6. Optional: benchmark search quality (from eval/)
+cd ../eval && uv sync
+uv run python -m podcast_eval.benchmark
 ```
 
-### 4. Install Backend Dependencies
+## Environment variables
 
-```bash
-cd backend
-uv sync
-```
+All packages read the same `.env` at the repo root (or env vars). See `.env.example`.
 
-### 5. Install Frontend Dependencies
+| Variable | Default | Used by | Notes |
+|---|---|---|---|
+| `DATABASE_URL` | `postgres://docker:docker@localhost:5432/postgres` | all | Postgres connection |
+| `EMBEDDING_MODEL` | `qwen3-embedding:8b` | pipeline, backend, eval | **Must match the corpus** — see below |
+| `OLLAMA_URL` | `http://localhost:11434` | pipeline, backend, eval | |
+| `TRANSCRIPTION_MODEL` | `large-v3` | pipeline | faster-whisper model size |
+| `WHISPER_DEVICE` / `WHISPER_COMPUTE_TYPE` | `cpu` / `int8` | pipeline | set `cuda`/`float16` on GPU |
+| `SEARCH_MIN_SCORE` | `0.44` | backend | calibrated via `eval/` (gold min 0.493 vs probe max 0.379) |
+| `PODCAST_DATA_ROOT` | `<repo>/data` | pipeline | audio + transcript caches |
 
-```bash
-cd frontend
-npm install
-```
+## Corpus provenance (store is source of truth)
 
-### 6. Run Ingestion (example)
+The store records which models produced the corpus (`schema_meta`: `embedding_model`, `embedding_dimensions`, `transcription_model`):
 
-```bash
-cd backend
-uv run python -m pipeline.ingest --limit 1 --download-audio
-```
+- **Pipeline** warns at ingest start if the existing corpus was embedded by a different model than configured (mixed-vector corpus → degraded search), and re-stamps `schema_meta` after a successful run.
+- **API** validates at startup and **fails loudly** if the configured `EMBEDDING_MODEL` doesn't match the stamped corpus (when the corpus is non-empty).
 
-### 7. Run Backend API
+So switching embedding models requires a deliberate re-ingest — it can never silently mix incompatible vectors.
 
-```bash
-cd backend
-uv run uvicorn api.main:app --reload --port 8000
-```
+## Design notes
 
-### 8. Run Frontend
+- **Vector-only search**: every hit score is semantically meaningful; when nothing clears `SEARCH_MIN_SCORE` the API returns `hits: []` with `no_match_reason`.
+- **No vector index**: pgvector HNSW caps at 2000 dims and the model outputs 4096, so `chunks.embedding` uses a linear scan — fine at local corpus size (see `db/init/002_schema.sql`).
+- **Ingest defaults to first 120 s** of audio for fast loops; `--full-audio` is explicit opt-in. Transcripts are cached in `data/transcripts/` keyed by `{episode}.{model}.{mode}.json`, so model changes never silently serve stale transcripts.
+- **Threshold calibration**: `SEARCH_MIN_SCORE=0.44` comes from the eval harness on the 5-episode corpus (gold top-1 min 0.493, probe top-1 max 0.379). Re-run the harness after corpus or model changes.
+- **Whisper naming caveat**: large-v3 can garble proper names in this corpus; benchmark gold queries anchor on phrasing, not names.
 
-```bash
-cd frontend
-npm run dev
-```
+## Next steps (parked)
 
-Frontend defaults to backend at `http://localhost:8000` (override with `VITE_API_BASE_URL`).
-
-## Environment Variables
-
-| Variable | Location | Required | Default | Purpose |
-| --- | --- | --- | --- | --- |
-| `DATABASE_URL` | `backend/.env` | No | local postgres (see `src/config.py`) | Backend DB connection |
-| `PODCAST_FEED_URL` | `backend/.env` | No | `https://feeds.captivate.fm/the-news-agents/` | RSS source for ingestion |
-| `TRANSCRIPTION_MODEL` | `backend/.env` | No | `large-v3` | faster-whisper model for audio transcription |
-| `EMBEDDING_MODEL` | `backend/.env` | No | `qwen3-embedding:8b` | Ollama model for semantic search vectors |
-| `SEARCH_MIN_SCORE` | `backend/.env` | No | `0.44` | Minimum confidence threshold for results (calibrated via `pipeline.benchmark`) |
-| `VITE_API_BASE_URL` | `frontend/.env.local` | No | `http://localhost:8000` | Frontend API base URL |
-
-**No API keys required** — transcription (faster-whisper) and embeddings (Ollama) both run locally.
-
-## Design Notes
-
-This section summarises the key tradeoffs and decisions used to arrive at the current app.
-
-### Architecture Choices
-
-- **Fully local inference**:
-  - Transcription: faster-whisper `large-v3` on CPU/GPU (no API key, no internet).
-  - Embeddings: Ollama `qwen3-embedding:8b` (4096 dims) via one shared client (`src/embeddings.py`) used by both pipeline and API.
-- **Pipeline and API split**:
-  - `src/pipeline` handles expensive ingest workloads (RSS, audio download, transcription, chunking, embeddings).
-  - `src/api` handles low-latency query/read contracts for frontend.
-- **Postgres + pgvector**:
-  - Single operational store for metadata, chunk text, and embeddings.
-  - Supports both structured browsing (`episodes`) and semantic retrieval (`/search`).
-- **API contract-first frontend**:
-  - Frontend uses typed endpoint contracts and display-ready fields (`snippet`, `timestamp_label`).
-
-### Tradeoffs
-
-- **Vector-only search**:
-  - No fallback so every hit score is semantically meaningful.
-  - If no confident matches exist, the API returns `hits: []` with `no_match_reason`
-- **Simple error model for MVP**:
-  - Unhandled backend failures are logged server-side and returned as generic `500` errors.
-  - We deferred typed error categories and retry policies.
-- **Cost/speed-biased ingestion default**:
-  - Ingestion transcribes the first 120 seconds by default; `--full-audio` is explicit opt-in.
-  - This keeps development loops fast while still running real end-to-end ingestion.
-- **Frontend structural pass over visual redesign**:
-  - We split `App.tsx` into focused components and added episode-card browsing.
-  - We intentionally deferred visual redesign, custom hooks extraction, debounce, and request cancellation.
-
-### Why These Choices
-
-- Keeps ingestion concerns away from request/response latency path.
-- Simplifies local MVP deployment (one DB stack, one API, one SPA).
-- Makes “search-first” and “episode-first” product flows possible from the same stored data.
-
-### What Is Currently Covered
-
-- RSS ingest from feed source
-- Transcript generation (truncated to first 120 seconds by default, `--full-audio` opt-in)
-- Chunking + embeddings + pgvector search
-- Episode-scoped or global search
-- Frontend UI for natural-language querying with optional episode-card scope
-
-## Production Readiness (Next Steps)
-
-These are the next improvements we would prioritize beyond V1.
-
-### Data Pipeline
-
-- Move ingestion to scheduled/queued workers with retry policies.
-  - Depends on available data-platform tooling and deployment constraints.
-- Consider extracting pipeline to a separate service/repo if team ownership or scaling needs require independent lifecycles.
-- Storage strategy for audio at larger scale (object storage + lifecycle rules)
-
-### LLM optimisation
-
-- Improve threshold calibration for matches (how many matches to return)
-- Add hybrid lexical + vector ranking strategy (improve match quality)
-- Consider reranking model for top-N
-
-### Observability
-
-- API metrics (latency/error rate)
-- Ingestion run summaries and alerts
-- Add more logging
-
-### Security
-
-- Authentication and authorisation for API and Frontend
-- Secret management outside local `.env`
-
-### Testing
-
-- Unit tests where relevant
-- Integration tests for ingest and search contracts
-- Deterministic smoke tests for demo workflows
-
-### Deployment
-
-- Containerisation strategy
-- Target platform configuration
+- Local embedding-model A/B: `qwen3-embedding:8b` vs `0.6b` vs `embeddinggemma:300m` (re-embed corpus, rerun harness)
+- Hybrid lexical + vector ranking, reranking of top-N
+- Scheduling/queueing for ingest; unit + integration tests; containerisation
