@@ -1,0 +1,78 @@
+{
+  "_note": "Gold queries must top-rank the listed episode. Rebuild as the corpus changes. Probes are plausible news-style questions absent from the corpus.",
+  "gold": [
+    {
+      "id": "labour-coup",
+      "query": "Describe the brilliantly executed coup in modern British politics and who the guest says it targeted",
+      "expect_episode": "9bb705bfb3c77a705ec3"
+    },
+    {
+      "id": "labour-energy",
+      "query": "What criticism does the guest level at the privatisation of the UK energy system?",
+      "expect_episode": "9bb705bfb3c77a705ec3"
+    },
+    {
+      "id": "dolly-bipartisan",
+      "query": "How did Dolly Parton manage to be adored by both Republicans and Democrats?",
+      "expect_episode": "7e050637fe81368807fe"
+    },
+    {
+      "id": "dolly-monarchy",
+      "query": "What comparison do the hosts draw between Dolly Parton's nationwide grief and the monarchy?",
+      "expect_episode": "7e050637fe81368807fe"
+    },
+    {
+      "id": "lowe-musk",
+      "query": "Why is Rupert Lowe earning as much money from Elon Musk as from being an MP?",
+      "expect_episode": "68b70346f52c83439272"
+    },
+    {
+      "id": "lowe-books",
+      "query": "Who was the subject of the first book in Rupert Lowe's series?",
+      "expect_episode": "68b70346f52c83439272"
+    },
+    {
+      "id": "harry-daily-mail",
+      "query": "How do the hosts react to the Daily Mail court judgment against Prince Harry?",
+      "expect_episode": "d40cd4cc8976afc32a55"
+    },
+    {
+      "id": "harry-taliban",
+      "query": "Why did Harry's talk about Taliban kills in Afghanistan make him a bigger security target?",
+      "expect_episode": "d40cd4cc8976afc32a55"
+    },
+    {
+      "id": "albania-tirana",
+      "query": "Why is the strongest resistance to Trump happening in Tirana rather than major US or European cities?",
+      "expect_episode": "33941488962837995993"
+    },
+    {
+      "id": "albania-rama",
+      "query": "Why does Edi Rama frame the moment as societal rather than political?",
+      "expect_episode": "33941488962837995993"
+    },
+    {
+      "id": "cross-mikado",
+      "query": "Which episode is sponsored by Mikado biscuits instead of HSBC?",
+      "expect_episode": "d40cd4cc8976afc32a55"
+    }
+  ],
+  "probes": [
+    {
+      "id": "probe-lhc",
+      "query": "Explain the experimental verification of the strong nuclear force at the LHC"
+    },
+    {
+      "id": "probe-sourdough",
+      "query": "What oven temperature should I use for a sourdough boule?"
+    },
+    {
+      "id": "probe-f1",
+      "query": "Who won the season finale of the F1 championship last year?"
+    },
+    {
+      "id": "probe-futures",
+      "query": "What's the best strategy for day-trading index futures around the US market open?"
+    }
+  ]
+}

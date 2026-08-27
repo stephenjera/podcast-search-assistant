@@ -81,7 +81,7 @@ Frontend defaults to backend at `http://localhost:8000` (override with `VITE_API
 | `PODCAST_FEED_URL` | `backend/.env` | No | `https://feeds.captivate.fm/the-news-agents/` | RSS source for ingestion |
 | `TRANSCRIPTION_MODEL` | `backend/.env` | No | `large-v3` | faster-whisper model for audio transcription |
 | `EMBEDDING_MODEL` | `backend/.env` | No | `qwen3-embedding:8b` | Ollama model for semantic search vectors |
-| `SEARCH_MIN_SCORE` | `backend/.env` | No | `0.10` | Minimum confidence threshold for results |
+| `SEARCH_MIN_SCORE` | `backend/.env` | No | `0.44` | Minimum confidence threshold for results (calibrated via `pipeline.benchmark`) |
 | `VITE_API_BASE_URL` | `frontend/.env.local` | No | `http://localhost:8000` | Frontend API base URL |
 
 **No API keys required** — transcription (faster-whisper) and embeddings (Ollama) both run locally.

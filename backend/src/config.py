@@ -13,7 +13,9 @@ class Settings(BaseSettings):
     # Embeddings (Ollama, local — used by BOTH pipeline and API)
     OLLAMA_URL: str = "http://localhost:11434"
     EMBEDDING_MODEL: str = "qwen3-embedding:8b"
-    SEARCH_MIN_SCORE: float = 0.10
+    # Calibrated via `pipeline.benchmark` on the 5-episode corpus:
+    # gold top-1 min 0.493 vs probe top-1 max 0.379 (2026-08-27)
+    SEARCH_MIN_SCORE: float = 0.44
     DATABASE_URL: str = "postgresql://docker:docker@localhost:5432/postgres"
 
     model_config = SettingsConfigDict(
