@@ -1,8 +1,20 @@
 import hashlib
 import json
+import math
 import re
 from pathlib import Path
 from typing import Any
+
+
+def cosine_similarity(a: list[float], b: list[float]) -> float:
+    if len(a) != len(b):
+        raise ValueError(f"dimension mismatch: {len(a)} vs {len(b)}")
+    dot = sum(x * y for x, y in zip(a, b))
+    norm_a = math.sqrt(sum(x * x for x in a))
+    norm_b = math.sqrt(sum(x * x for x in b))
+    if norm_a == 0.0 or norm_b == 0.0:
+        return 0.0
+    return dot / (norm_a * norm_b)
 
 
 def slugify(value: str) -> str:
