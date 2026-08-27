@@ -1,6 +1,20 @@
-from podcast_core.repository import vector_search
+from dataclasses import asdict
 
-from .schemas import SearchHit, SearchResponse
+from podcast_core.repository import (
+    get_episode,
+    list_episode_chunks,
+    list_episodes,
+    vector_search,
+)
+
+from .schemas import (
+    EpisodeChunk,
+    EpisodeDetailResponse,
+    EpisodeListResponse,
+    EpisodeSummary,
+    SearchHit,
+    SearchResponse,
+)
 from podcast_core.config import settings
 from podcast_core.db import get_db_connection
 from podcast_core.embeddings import embed_texts
@@ -83,3 +97,38 @@ def _enhance_hit(hit: SearchHit) -> SearchHit:
             "snippet": snippet,
         },
     )
+
+
+def list_episode_summaries(limit: int = 100) -> EpisodeListResponse:
+    """Map core's plain EpisodeSummaryRow dataclasses onto the API schema."""
+    with get_db_connection() as conn:
+        rows = list_episodes(conn=conn, limit=limit)
+    return EpisodeListResponse(
+        episodes=[EpisodeSummary(**asdict(row)) for row in rows]
+    )
+
+
+def get_episode_summary(episode_id: str) -> EpisodeDetailResponse | None:
+    with get_db_connection() as conn:
+        row = get_episode(conn=conn, episode_id=episode_id)
+    if row is None:
+        return None
+    return EpisodeDetailResponse(episode=EpisodeSummary(**asdict(row)))
+
+
+def list_episode_chunk_summaries(
+    episode_id: str, limit: int = 500
+) -> list[EpisodeChunk]:
+    with get_db_connection() as conn:
+        rows = list_episode_chunks(conn=conn, episode_id=episode_id, limit=limit)
+    return [
+        EpisodeChunk(
+            chunk_id=row.chunk_id,
+            chunk_index=row.chunk_index,
+            text=row.text,
+            start_time=row.start_time,
+            end_time=row.end_time,
+            timestamp_label=format_timestamp(row.start_time),
+        )
+        for row in rows
+    ]

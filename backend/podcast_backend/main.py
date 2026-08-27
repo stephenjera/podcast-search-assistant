@@ -8,7 +8,6 @@ from podcast_core.config import settings
 from podcast_core.db import get_db_connection
 from podcast_core.logger import get_logger
 from podcast_core.meta import validate_embedding_model
-from podcast_core.repository import get_episode, list_episode_chunks, list_episodes
 from podcast_backend.schemas import (
     EpisodeChunksResponse,
     EpisodeDetailResponse,
@@ -17,7 +16,12 @@ from podcast_backend.schemas import (
     SearchRequest,
     SearchResponse,
 )
-from podcast_backend.service import run_search
+from podcast_backend.service import (
+    get_episode_summary,
+    list_episode_chunk_summaries,
+    list_episode_summaries,
+    run_search,
+)
 
 logger = get_logger(__name__)
 
@@ -63,10 +67,9 @@ def health() -> HealthResponse:
 def get_episodes() -> EpisodeListResponse:
     try:
         logger.info("GET /episodes called")
-        with get_db_connection() as conn:
-            episodes = list_episodes(conn=conn)
-        logger.info(f"GET /episodes returning {len(episodes)} episodes")
-        return EpisodeListResponse(episodes=episodes)
+        response = list_episode_summaries()
+        logger.info(f"GET /episodes returning {len(response.episodes)} episodes")
+        return response
     except HTTPException:
         raise
     except Exception as exc:
@@ -77,11 +80,10 @@ def get_episodes() -> EpisodeListResponse:
 def get_episode_detail(episode_id: str) -> EpisodeDetailResponse:
     try:
         logger.info(f"GET /episodes/{episode_id} called")
-        with get_db_connection() as conn:
-            episode = get_episode(conn=conn, episode_id=episode_id)
-        if episode is None:
+        response = get_episode_summary(episode_id=episode_id)
+        if response is None:
             raise HTTPException(status_code=404, detail="Episode not found")
-        return EpisodeDetailResponse(episode=episode)
+        return response
     except HTTPException:
         raise
     except Exception as exc:
@@ -95,16 +97,15 @@ def get_episode_chunks(
 ) -> EpisodeChunksResponse:
     try:
         logger.info(f"GET /episodes/{episode_id}/chunks called limit={limit}")
-        with get_db_connection() as conn:
-            episode = get_episode(conn=conn, episode_id=episode_id)
-            if episode is None:
-                raise HTTPException(status_code=404, detail="Episode not found")
-            chunks = list_episode_chunks(conn=conn, episode_id=episode_id, limit=limit)
+        summary = get_episode_summary(episode_id=episode_id)
+        if summary is None:
+            raise HTTPException(status_code=404, detail="Episode not found")
+        chunks = list_episode_chunk_summaries(episode_id=episode_id, limit=limit)
         return EpisodeChunksResponse(
-            episode_id=episode.episode_id,
-            episode_title=episode.title,
-            published_at=episode.published_at,
-            page_url=episode.page_url,
+            episode_id=summary.episode.episode_id,
+            episode_title=summary.episode.title,
+            published_at=summary.episode.published_at,
+            page_url=summary.episode.page_url,
             chunks=chunks,
         )
     except HTTPException:
