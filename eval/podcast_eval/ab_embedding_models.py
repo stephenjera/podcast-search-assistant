@@ -36,9 +36,9 @@ DEFAULT_QUERIES_PATH = EVAL_ROOT / "queries.json"
 RESULTS_DIR = EVAL_ROOT / "results"
 
 MODELS = [
-    "qwen3-embedding:8b",     # current, 4096 dims
-    "qwen3-embedding:0.6b",   # candidate, 1024 dims (HNSW-indexable)
-    "embeddinggemma:300m",    # candidate, 768 dims (HNSW-indexable)
+    "qwen3-embedding:0.6b",   # current standard, 1024 dims (HNSW-indexable)
+    "qwen3-embedding:8b",     # previous, 4096 dims (baseline validator)
+    "embeddinggemma:300m",    # alternative, 768 dims (HNSW-indexable)
 ]
 
 

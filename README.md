@@ -31,9 +31,10 @@ docker compose up -d
 docker exec -i -u postgres postgres psql -U docker -d postgres < db/init/001_extensions.sql
 docker exec -i -u postgres postgres psql -U docker -d postgres < db/init/002_schema.sql
 docker exec -i -u postgres postgres psql -U docker -d postgres < db/init/003_schema_meta.sql
+docker exec -i -u postgres postgres psql -U docker -d postgres < db/init/004_embedding_1024_hnsw.sql
 
 # 2. Embedding model
-ollama pull qwen3-embedding:8b
+ollama pull qwen3-embedding:0.6b
 
 # 3. Ingest a few episodes (from pipeline/)
 cd pipeline && uv sync
@@ -59,11 +60,11 @@ All packages read the same `.env` at the repo root (or env vars). See `.env.exam
 | Variable | Default | Used by | Notes |
 |---|---|---|---|
 | `DATABASE_URL` | `postgres://docker:docker@localhost:5432/postgres` | all | Postgres connection |
-| `EMBEDDING_MODEL` | `qwen3-embedding:8b` | pipeline, backend, eval | **Must match the corpus** — see below |
+| `EMBEDDING_MODEL` | `qwen3-embedding:0.6b` | pipeline, backend, eval | **Must match the corpus** — see below |
 | `OLLAMA_URL` | `http://localhost:11434` | pipeline, backend, eval | |
 | `TRANSCRIPTION_MODEL` | `large-v3` | pipeline | faster-whisper model size |
 | `WHISPER_DEVICE` / `WHISPER_COMPUTE_TYPE` | `cpu` / `int8` | pipeline | set `cuda`/`float16` on GPU |
-| `SEARCH_MIN_SCORE` | `0.44` | backend | calibrated via `eval/` (gold min 0.493 vs probe max 0.379) |
+| `SEARCH_MIN_SCORE` | `0.42` | backend | calibrated via `eval/` (gold min 0.499 vs probe max 0.346) |
 | `PODCAST_DATA_ROOT` | `<repo>/data` | pipeline | audio + transcript caches |
 
 ## Corpus provenance (store is source of truth)
@@ -78,13 +79,12 @@ So switching embedding models requires a deliberate re-ingest — it can never s
 ## Design notes
 
 - **Vector-only search**: every hit score is semantically meaningful; when nothing clears `SEARCH_MIN_SCORE` the API returns `hits: []` with `no_match_reason`.
-- **No vector index**: pgvector HNSW caps at 2000 dims and the model outputs 4096, so `chunks.embedding` uses a linear scan — fine at local corpus size (see `db/init/002_schema.sql`).
+- **HNSW-indexed vectors**: `chunks.embedding` carries a HNSW index (cosine ops) — 1024 dims fit the 2000-dim pgvector HNSW cap (see `db/init/004_embedding_1024_hnsw.sql`).
 - **Ingest defaults to first 120 s** of audio for fast loops; `--full-audio` is explicit opt-in. Transcripts are cached in `data/transcripts/` keyed by `{episode}.{model}.{mode}.json`, so model changes never silently serve stale transcripts.
-- **Threshold calibration**: `SEARCH_MIN_SCORE=0.44` comes from the eval harness on the 5-episode corpus (gold top-1 min 0.493, probe top-1 max 0.379). Re-run the harness after corpus or model changes.
+- **Threshold calibration**: `SEARCH_MIN_SCORE=0.42` comes from the A/B harness on the 5-episode corpus with `qwen3-embedding:0.6b` (gold top-1 min 0.499, probe top-1 max 0.346). Re-run the harness after corpus or model changes.
 - **Whisper naming caveat**: large-v3 can garble proper names in this corpus; benchmark gold queries anchor on phrasing, not names.
 
 ## Next steps (parked)
 
-- Local embedding-model A/B: `qwen3-embedding:8b` vs `0.6b` vs `embeddinggemma:300m` (re-embed corpus, rerun harness)
 - Hybrid lexical + vector ranking, reranking of top-N
 - Scheduling/queueing for ingest; unit + integration tests; containerisation

@@ -44,10 +44,12 @@ class Settings(BaseSettings):
     WHISPER_COMPUTE_TYPE: str = "int8"
     # Embeddings (Ollama, local — used by BOTH pipeline and API)
     OLLAMA_URL: str = "http://localhost:11434"
-    EMBEDDING_MODEL: str = "qwen3-embedding:8b"
-    # Calibrated via `pipeline.benchmark` on the 5-episode corpus:
-    # gold top-1 min 0.493 vs probe top-1 max 0.379 (2026-08-27)
-    SEARCH_MIN_SCORE: float = 0.44
+    # A/B (2026-08-27, eval/results/ab-*.json): 0.6b matched 8b at 11/11 hit@1
+    # with the best gold/probe margin and 1024 dims fit the pgvector HNSW cap.
+    EMBEDDING_MODEL: str = "qwen3-embedding:0.6b"
+    # Calibrated via the A/B on the 5-episode corpus with qwen3-embedding:0.6b:
+    # gold top-1 min 0.4986 vs probe top-1 max 0.3464 (2026-08-27)
+    SEARCH_MIN_SCORE: float = 0.42
     DATABASE_URL: str = "postgresql://docker:docker@localhost:5432/postgres"
 
     model_config = SettingsConfigDict(

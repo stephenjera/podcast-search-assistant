@@ -12,9 +12,6 @@ from podcast_core.logger import get_logger
 
 logger = get_logger(__name__)
 
-# qwen3-embedding:8b output dimension. Keep in sync with EMBEDDING_MODEL.
-EMBEDDING_DIMENSIONS = 4096
-
 # Ollama accepts lists of arbitrary length, but keep requests bounded so a
 # full-episode chunk batch doesn't become one huge HTTP body.
 _BATCH_SIZE = 64
@@ -38,8 +35,10 @@ def embed_texts(
     vectors: list[list[float]] = []
     for start in range(0, len(texts), _BATCH_SIZE):
         vectors.extend(_embed_batch(texts[start : start + _BATCH_SIZE], model))
-    dims = len(vectors[0]) if vectors else EMBEDDING_DIMENSIONS
-    logger.info(f"Embedded {len(texts)} texts ({dims} dims each, model={model or settings.EMBEDDING_MODEL})")
+    logger.info(
+        f"Embedded {len(texts)} texts ({len(vectors[0])} dims each, "
+        f"model={model or settings.EMBEDDING_MODEL})"
+    )
     return vectors
 
 
