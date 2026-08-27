@@ -4,11 +4,15 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    OPENAI_API_KEY: str | None = None
     LOG_LEVEL: str = "INFO"
     PODCAST_FEED_URL: str = "https://feeds.captivate.fm/the-news-agents/"
-    TRANSCRIPTION_MODEL: str = "whisper-1"
-    EMBEDDING_MODEL: str = "text-embedding-3-small"
+    # Transcription (faster-whisper, local)
+    TRANSCRIPTION_MODEL: str = "large-v3"
+    WHISPER_DEVICE: str = "cpu"
+    WHISPER_COMPUTE_TYPE: str = "int8"
+    # Embeddings (Ollama, local — used by BOTH pipeline and API)
+    OLLAMA_URL: str = "http://localhost:11434"
+    EMBEDDING_MODEL: str = "qwen3-embedding:8b"
     SEARCH_MIN_SCORE: float = 0.10
     DATABASE_URL: str = "postgresql://docker:docker@localhost:5432/postgres"
 

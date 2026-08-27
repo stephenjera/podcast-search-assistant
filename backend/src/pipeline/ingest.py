@@ -3,12 +3,14 @@ from pathlib import Path
 
 from config import settings
 from db import get_db_connection
+from embeddings import embed_texts
 from logger import get_logger
 from pipeline.audio import download_episode_audio
 from pipeline.chunking import build_chunks_from_transcript
-from pipeline.embeddings import embed_texts
 from pipeline.repository import (
+    finish_ingest_run,
     replace_chunks,
+    start_ingest_run,
     upsert_audio_asset,
     upsert_episode,
     upsert_transcript,
@@ -33,79 +35,99 @@ def run_ingestion(args: argparse.Namespace) -> None:
     logger.info(f"Fetched {len(episodes)} episodes")
 
     with get_db_connection() as conn:
-        for episode in episodes:
-            logger.info(f"Processing episode: {episode.title}")
-            episode_db_id = upsert_episode(conn, episode)
+        run_id = start_ingest_run(conn)
+        conn.commit()
+        processed = 0
+        try:
+            for episode in episodes:
+                logger.info(f"Processing episode: {episode.title}")
+                episode_db_id = upsert_episode(conn, episode)
 
-            audio_path = None
-            if args.download_audio:
-                audio_path = download_episode_audio(episode, AUDIO_DIR)
-            else:
-                possible_audio = AUDIO_DIR / f"{episode.episode_id}.mp3"
-                if possible_audio.exists():
-                    audio_path = possible_audio
+                audio_path = None
+                if args.download_audio:
+                    audio_path = download_episode_audio(episode, AUDIO_DIR)
+                else:
+                    possible_audio = AUDIO_DIR / f"{episode.episode_id}.mp3"
+                    if possible_audio.exists():
+                        audio_path = possible_audio
 
-            if audio_path and audio_path.exists():
-                upsert_audio_asset(conn, episode_db_id, audio_path)
+                if audio_path and audio_path.exists():
+                    upsert_audio_asset(conn, episode_db_id, audio_path)
 
-            transcript = None
-            if audio_path and audio_path.exists():
-                transcript = load_or_transcribe_episode(
-                    episode=episode,
-                    audio_path=audio_path,
-                    cache_dir=TRANSCRIPT_DIR,
-                    full_audio=args.full_audio,
-                    truncation_seconds=DEFAULT_TRUNCATION_SECONDS,
-                )
-            else:
-                cached_path = transcript_cache_path(
+                transcript = None
+                if audio_path and audio_path.exists():
+                    transcript = load_or_transcribe_episode(
+                        episode=episode,
+                        audio_path=audio_path,
+                        cache_dir=TRANSCRIPT_DIR,
+                        model_name=settings.TRANSCRIPTION_MODEL,
+                        full_audio=args.full_audio,
+                        truncation_seconds=DEFAULT_TRUNCATION_SECONDS,
+                    )
+                else:
+                    cached_path = transcript_cache_path(
+                        TRANSCRIPT_DIR,
+                        episode,
+                        model_name=settings.TRANSCRIPTION_MODEL,
+                        full_audio=args.full_audio,
+                        truncation_seconds=DEFAULT_TRUNCATION_SECONDS,
+                    )
+                    if cached_path.exists():
+                        transcript = read_json(cached_path)
+
+                if transcript is None:
+                    logger.warning("Skipping episode: no transcript available")
+                    conn.commit()
+                    continue
+
+                transcript_path = transcript_cache_path(
                     TRANSCRIPT_DIR,
                     episode,
+                    model_name=settings.TRANSCRIPTION_MODEL,
                     full_audio=args.full_audio,
                     truncation_seconds=DEFAULT_TRUNCATION_SECONDS,
                 )
-                if cached_path.exists():
-                    transcript = read_json(cached_path)
+                transcript_db_id = upsert_transcript(
+                    conn=conn,
+                    episode_db_id=episode_db_id,
+                    transcript_path=transcript_path,
+                    transcript=transcript,
+                    model_name=settings.TRANSCRIPTION_MODEL,
+                )
 
-            if transcript is None:
-                logger.warning("Skipping episode: no transcript available")
+                chunks = build_chunks_from_transcript(
+                    episode=episode,
+                    transcript=transcript,
+                    max_chars=args.max_chunk_chars,
+                )
+                if not chunks:
+                    logger.warning("Skipping episode: transcript yielded no chunks")
+                    conn.commit()
+                    continue
+
+                vectors = embed_texts([chunk.text for chunk in chunks])
+                replace_chunks(
+                    conn=conn,
+                    episode_db_id=episode_db_id,
+                    transcript_db_id=transcript_db_id,
+                    chunks=chunks,
+                    vectors=vectors,
+                )
                 conn.commit()
-                continue
-
-            transcript_path = transcript_cache_path(
-                TRANSCRIPT_DIR,
-                episode,
-                full_audio=args.full_audio,
-                truncation_seconds=DEFAULT_TRUNCATION_SECONDS,
-            )
-            transcript_db_id = upsert_transcript(
-                conn=conn,
-                episode_db_id=episode_db_id,
-                transcript_path=transcript_path,
-                transcript=transcript,
-                model_name=settings.TRANSCRIPTION_MODEL,
-            )
-
-            chunks = build_chunks_from_transcript(
-                episode=episode,
-                transcript=transcript,
-                max_chars=args.max_chunk_chars,
-            )
-            if not chunks:
-                logger.warning("Skipping episode: transcript yielded no chunks")
-                conn.commit()
-                continue
-
-            vectors = embed_texts([chunk.text for chunk in chunks])
-            replace_chunks(
-                conn=conn,
-                episode_db_id=episode_db_id,
-                transcript_db_id=transcript_db_id,
-                chunks=chunks,
-                vectors=vectors,
+                processed += 1
+                logger.info(f"Stored {len(chunks)} chunks for episode")
+        except Exception as exc:
+            finish_ingest_run(
+                conn, run_id, status="failed",
+                episodes_processed=processed, error=f"{type(exc).__name__}: {exc}",
             )
             conn.commit()
-            logger.info(f"Stored {len(chunks)} chunks for episode")
+            raise
+        finish_ingest_run(
+            conn, run_id, status="completed", episodes_processed=processed
+        )
+        conn.commit()
+        logger.info(f"Ingest run {run_id} completed: {processed} episodes")
 
 
 def build_parser() -> argparse.ArgumentParser:

@@ -10,10 +10,10 @@ readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.138.2",
-    "openai>=2.44.0",
+    "faster-whisper>=1.2.1",
+    "httpx>=0.28.0",
     "pgvector>=0.4.1",
     "pydantic>=2.13.4",
-    "pydantic-ai>=2.1.0",
     "pydantic-settings>=2.14.1",
     "psycopg[binary]>=3.2.10",
     "pydub>=0.25.1",

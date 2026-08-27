@@ -118,3 +118,36 @@ def replace_chunks(
                     embedding,
                 ),
             )
+
+
+def start_ingest_run(conn: Connection) -> str:
+    with conn.cursor() as cur:
+        cur.execute(
+            query="INSERT INTO ingest_runs (status) VALUES ('running') RETURNING id",
+        )
+        row = cur.fetchone()
+        if row is None:
+            raise ValueError("Failed to start ingest run")
+        return str(row[0])
+
+
+def finish_ingest_run(
+    conn: Connection,
+    run_id: str,
+    *,
+    status: str,
+    episodes_processed: int,
+    error: str | None = None,
+) -> None:
+    with conn.cursor() as cur:
+        cur.execute(
+            query="""
+            UPDATE ingest_runs
+            SET status = %s,
+                episodes_processed = %s,
+                error = %s,
+                finished_at = NOW()
+            WHERE id = %s
+            """,
+            params=(status, episodes_processed, error, run_id),
+        )

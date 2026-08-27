@@ -2,16 +2,20 @@
 
 This backend is split into:
 
-- `src/pipeline`: RSS ingest, download, transcription, chunking, embeddings, DB writes
+- `src/pipeline`: RSS ingest, download, transcription, chunking, DB writes
 - `src/api`: FastAPI read/query layer for frontend
+- `src/embeddings.py`: shared embedding client (Ollama) — used by BOTH the pipeline and the API, so corpus and query vectors always live in the same space
 
-Shared modules live in `src/` root (`config.py`, `db.py`, `logger.py`, `models.py`, `utils.py`).
+Shared modules live in `src/` root (`config.py`, `db.py`, `embeddings.py`, `logger.py`, `models.py`, `utils.py`).
 
 ## Prerequisites
 
 - Python 3.12+
 - `uv`
 - Docker (for Postgres + pgvector via `docker-compose`)
+- Ollama with the embedding model pulled: `ollama pull qwen3-embedding:8b`
+
+> Transcription (faster-whisper `large-v3`) runs locally on CPU/GPU — no Ollama or API key needed for it.
 
 ## Install Dependencies
 
@@ -44,8 +48,12 @@ uv run python -m pipeline.ingest --limit 1 --full-audio
 uv run python -m pipeline.ingest --limit 1 --no-download-audio
 ```
 
-Default behavior transcribes only the first `120` seconds of each episode in-memory before calling OpenAI.
+Default behavior transcribes only the first `120` seconds of each episode locally with faster-whisper
+(model from `TRANSCRIPTION_MODEL`, default `large-v3`). Transcripts are cached on disk under
+`data/transcripts/` keyed by episode, model, and mode, so re-runs skip transcription.
 Pass `--full-audio` to opt in to full-episode transcription.
+
+Each run is recorded in the `ingest_runs` table (status, episodes processed, error) for a quick run summary.
 
 ## Run API
 

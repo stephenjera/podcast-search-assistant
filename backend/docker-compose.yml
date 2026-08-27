@@ -21,7 +21,7 @@ services:
         max-size: 10m
         max-file: "3"
     volumes:
-      - ./database:/var/lib/postgresql/data
+      - ./data/postgres:/var/lib/postgresql/data
       - ./db/init:/docker-entrypoint-initdb.d
 
   pgadmin:

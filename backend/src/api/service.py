@@ -1,9 +1,8 @@
-from openai import OpenAI
-
 from api.repository import vector_search
 from api.schemas import SearchHit, SearchResponse
 from config import settings
 from db import get_db_connection
+from embeddings import embed_texts
 from logger import get_logger
 from utils import format_timestamp
 
@@ -19,18 +18,8 @@ def run_search(
     logger.info(
         f"Search requested: query='{query[:120]}' top_k={top_k} episode_id={episode_id}"
     )
-    if not settings.OPENAI_API_KEY:
-        raise ValueError("OPENAI_API_KEY is required for search embeddings")
 
-    client = OpenAI(api_key=settings.OPENAI_API_KEY)
-    query_vector = (
-        client.embeddings.create(
-            model=settings.EMBEDDING_MODEL,
-            input=[query],
-        )
-        .data[0]
-        .embedding
-    )
+    query_vector = embed_texts([query])[0]
     logger.info(f"Query embedding generated (dimensions={len(query_vector)})")
 
     with get_db_connection() as conn:

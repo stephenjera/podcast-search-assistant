@@ -39,8 +39,17 @@ CREATE TABLE IF NOT EXISTS chunks (
     start_time_seconds DOUBLE PRECISION NOT NULL,
     end_time_seconds DOUBLE PRECISION NOT NULL,
     metadata_json JSONB NOT NULL DEFAULT '{}'::jsonb,
-    embedding VECTOR(1536),
+    embedding VECTOR(4096),
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS ingest_runs (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    started_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    finished_at TIMESTAMPTZ,
+    status TEXT NOT NULL DEFAULT 'running',
+    episodes_processed INTEGER NOT NULL DEFAULT 0,
+    error TEXT
 );
 
 CREATE INDEX IF NOT EXISTS idx_episodes_external_id ON episodes (external_episode_id);
@@ -48,3 +57,6 @@ CREATE INDEX IF NOT EXISTS idx_transcripts_episode_id ON transcripts (episode_id
 CREATE INDEX IF NOT EXISTS idx_chunks_episode_id ON chunks (episode_id);
 CREATE INDEX IF NOT EXISTS idx_chunks_chunk_index ON chunks (chunk_index);
 CREATE INDEX IF NOT EXISTS idx_chunks_metadata_json_gin ON chunks USING GIN (metadata_json);
+-- NOTE: no vector index — pgvector HNSW caps at 2000 dims and qwen3-embedding:8b
+-- outputs 4096. Linear scan is fine at local corpus size; revisit if queries
+-- get slow (options: matryoshka truncation to <=2000 dims + HNSW, or bit quantization).
