@@ -12,5 +12,4 @@ __pycache__/
 # local data (audio, transcripts, postgres volume, generated eval results)
 data/
 eval/results/
-servers.json
 *.log
